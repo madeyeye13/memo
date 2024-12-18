@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSVP QR Code Scanner</title>
+    <!-- HTML5 QR Code Library -->
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+
+    <style>
+        /* General Styling */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            text-align: center;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        #rsvp-details {
+            margin-top: 20px;
+            text-align: left;
+            display: none; /* Hidden until scan success */
+        }
+
+        p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        strong {
+            color: #555;
+        }
+
+        #qr-reader {
+            display: none; /* Scanner hidden initially */
+            margin: 20px auto;
+            width: 100%;
+            max-width: 300px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .btn {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RSVP QR Code Scanner</h1>
+
+        <!-- Scan Button -->
+        <button class="btn" id="start-scan-btn">Scan QR Code</button>
+
+        <!-- QR Code Scanner (Initially Hidden) -->
+        <div id="qr-reader"></div>
+
+        <!-- RSVP Details (Initially Hidden) -->
+        <div id="rsvp-details">
+            <h2>RSVP Details</h2>
+            <p><strong>Name:</strong> <span id="rsvp-name">-</span></p>
+            <p><strong>Email:</strong> <span id="rsvp-email">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Reference to elements
+        const startScanBtn = document.getElementById("start-scan-btn");
+        const qrReaderElement = document.getElementById("qr-reader");
+        const rsvpDetailsElement = document.getElementById("rsvp-details");
+
+        let qrReader; // For storing Html5Qrcode instance
+
+        // Initialize and start QR Code Scanner
+        function startQRCodeScanner() {
+            // Hide the scan button
+            startScanBtn.style.display = "none";
+
+            // Show the scanner container
+            qrReaderElement.style.display = "block";
+
+            // Initialize Html5Qrcode instance
+            qrReader = new Html5Qrcode("qr-reader");
+
+            qrReader.start(
+                { facingMode: "environment" }, // Rear camera
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    // On successful scan
+                    displayRSVPDetails(decodedText);
+
+                    // Stop scanning
+                    qrReader.stop();
+                    qrReaderElement.style.display = "none";
+                },
+                (errorMessage) => {
+                    console.warn("QR Scan Error:", errorMessage);
+                }
+            );
+        }
+
+        // Display RSVP Details
+        function displayRSVPDetails(qrData) {
+            try {
+                // Parse JSON data from QR code
+                const details = JSON.parse(qrData);
+
+                // Update details
+                document.getElementById("rsvp-name").textContent = details.name || "N/A";
+                document.getElementById("rsvp-email").textContent = details.email || "N/A";
+
+                // Show RSVP details container
+                rsvpDetailsElement.style.display = "block";
+            } catch (error) {
+                console.error("Invalid QR Data:", error);
+                alert("Invalid QR code format. Please try again.");
+            }
+        }
+
+        // Attach event listener to the button
+        startScanBtn.addEventListener("click", startQRCodeScanner);
+    </script>
+</body>
+</html>
