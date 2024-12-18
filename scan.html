@@ -4,23 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSVP QR Code Scanner</title>
-    <!-- HTML5 QR Code Library with integrity and crossorigin -->
-    <script 
-        src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"
-        integrity="sha384-1234567890" 
-        crossorigin="anonymous"
-        onerror="handleScriptError()"
-    ></script>
+    
+    <!-- Multiple CDN sources for the library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.4/minified/html5-qrcode.min.js"></script>
 
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            margin: 0;
             background-color: #f4f4f4;
         }
 
@@ -28,24 +24,15 @@
             text-align: center;
             background-color: white;
             padding: 20px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
             max-width: 500px;
             width: 100%;
         }
 
-        #error-message {
+        #error-message, #library-status {
             color: red;
             margin: 10px 0;
-        }
-
-        #qr-reader {
-            display: none;
-            margin: 20px auto;
-            width: 100%;
-            max-width: 300px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
         }
 
         .btn {
@@ -53,34 +40,36 @@
             color: white;
             border: none;
             padding: 10px 20px;
-            font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
             margin: 10px 0;
         }
 
-        .btn:hover {
-            background-color: #0056b3;
+        #qr-reader {
+            display: none;
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>RSVP QR Code Scanner</h1>
-
+        
         <!-- Library Status -->
         <div id="library-status"></div>
-
+        
         <!-- Error Message -->
         <div id="error-message"></div>
-
+        
         <!-- Scan Button -->
-        <button class="btn" id="start-scan-btn" disabled>Scan QR Code</button>
-
-        <!-- QR Code Scanner (Initially Hidden) -->
+        <button id="start-scan-btn" class="btn" disabled>Scan QR Code</button>
+        
+        <!-- QR Code Scanner -->
         <div id="qr-reader"></div>
-
-        <!-- RSVP Details (Initially Hidden) -->
+        
+        <!-- RSVP Details -->
         <div id="rsvp-details" style="display:none;">
             <h2>RSVP Details</h2>
             <p><strong>Name:</strong> <span id="rsvp-name">-</span></p>
@@ -89,104 +78,101 @@
     </div>
 
     <script>
-        // Global error handling for script loading
-        function handleScriptError() {
+        // Comprehensive library loading check
+        function checkLibraryLoaded() {
             const libraryStatus = document.getElementById('library-status');
             const errorMessage = document.getElementById('error-message');
             const startScanBtn = document.getElementById('start-scan-btn');
 
-            libraryStatus.innerHTML = '<p style="color:red;">Failed to load QR Code library</p>';
-            errorMessage.textContent = 'Could not load the QR code scanning library. Please check your internet connection.';
-            startScanBtn.disabled = true;
+            // Check multiple ways the library might be defined
+            if (typeof Html5Qrcode === 'undefined' && 
+                typeof window.Html5Qrcode === 'undefined' && 
+                typeof globalThis.Html5Qrcode === 'undefined') {
+                
+                libraryStatus.innerHTML = '<p style="color:red;">Html5Qrcode library not loaded</p>';
+                errorMessage.textContent = 'QR Code scanning library failed to initialize. Check console for details.';
+                
+                // Log additional diagnostic information
+                console.error('Library loading diagnostics:', {
+                    navigator: navigator.userAgent,
+                    scripts: Array.from(document.scripts).map(script => script.src)
+                });
+
+                return false;
+            }
+
+            // Library loaded successfully
+            libraryStatus.innerHTML = '<p style="color:green;">QR Code library loaded successfully</p>';
+            startScanBtn.disabled = false;
+            return true;
         }
 
-        // Wait for the script to load
+        // Initialize scanner when document is ready
         document.addEventListener('DOMContentLoaded', function() {
-            const libraryStatus = document.getElementById('library-status');
-            const errorMessage = document.getElementById('error-message');
-            const startScanBtn = document.getElementById('start-scan-btn');
-            const qrReaderElement = document.getElementById("qr-reader");
-            const rsvpDetailsElement = document.getElementById("rsvp-details");
+            // Wait a moment to ensure scripts have time to load
+            setTimeout(() => {
+                if (!checkLibraryLoaded()) return;
 
-            // Check if Html5Qrcode is defined
-            function initializeScanner() {
-                if (typeof Html5Qrcode === 'undefined') {
-                    libraryStatus.innerHTML = '<p style="color:red;">Html5Qrcode library not loaded</p>';
-                    errorMessage.textContent = 'QR Code scanning library failed to initialize.';
-                    return;
-                }
+                const startScanBtn = document.getElementById('start-scan-btn');
+                const qrReaderElement = document.getElementById('qr-reader');
+                const errorMessage = document.getElementById('error-message');
+                const rsvpDetailsElement = document.getElementById('rsvp-details');
 
-                // Enable scan button
-                startScanBtn.disabled = false;
-                libraryStatus.innerHTML = '<p style="color:green;">QR Code library loaded successfully</p>';
-
-                // Scanner initialization function
-                async function startQRCodeScanner() {
-                    // Reset previous states
-                    errorMessage.textContent = '';
-                    rsvpDetailsElement.style.display = 'none';
-
-                    // Check camera support
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                        errorMessage.textContent = "Your browser does not support camera access.";
-                        return;
-                    }
-
+                startScanBtn.addEventListener('click', async function() {
                     try {
-                        // Attempt to get camera stream
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                        
-                        // Stop the initial stream
-                        stream.getTracks().forEach(track => track.stop());
+                        // Reset previous state
+                        errorMessage.textContent = '';
+                        rsvpDetailsElement.style.display = 'none';
 
-                        // Initialize QR Code scanner
-                        const qrReader = new Html5Qrcode("qr-reader");
+                        // Check camera support
+                        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                            throw new Error('Camera not supported');
+                        }
 
                         // Show QR reader
-                        qrReaderElement.style.display = "block";
-                        startScanBtn.style.display = "none";
+                        qrReaderElement.style.display = 'block';
+                        startScanBtn.style.display = 'none';
+
+                        // Initialize scanner
+                        const scanner = new Html5Qrcode("qr-reader");
 
                         // Start scanning
-                        qrReader.start(
+                        await scanner.start(
                             { facingMode: "environment" },
-                            { fps: 10, qrbox: { width: 250, height: 250 } },
-                            (decodedText) => {
+                            { fps: 10, qrbox: 250 },
+                            (result) => {
                                 try {
                                     // Parse QR code data
-                                    const details = JSON.parse(decodedText);
+                                    const details = JSON.parse(result);
                                     
                                     // Update RSVP details
-                                    document.getElementById("rsvp-name").textContent = details.name || "N/A";
-                                    document.getElementById("rsvp-email").textContent = details.email || "N/A";
+                                    document.getElementById('rsvp-name').textContent = details.name || 'N/A';
+                                    document.getElementById('rsvp-email').textContent = details.email || 'N/A';
                                     
                                     // Show details
-                                    rsvpDetailsElement.style.display = "block";
+                                    rsvpDetailsElement.style.display = 'block';
                                     
                                     // Stop scanning
-                                    qrReader.stop();
-                                    qrReaderElement.style.display = "none";
-                                    startScanBtn.style.display = "block";
+                                    scanner.stop();
+                                    qrReaderElement.style.display = 'none';
+                                    startScanBtn.style.display = 'block';
                                 } catch (parseError) {
-                                    errorMessage.textContent = "Invalid QR code data format.";
-                                    console.error("QR Code parsing error:", parseError);
+                                    errorMessage.textContent = 'Invalid QR code format';
+                                    console.error('Parsing error:', parseError);
                                 }
                             },
                             (errorMessage) => {
-                                console.warn("QR Scan Error:", errorMessage);
+                                console.warn('Scan error:', errorMessage);
                             }
                         );
                     } catch (error) {
-                        errorMessage.textContent = `Camera access error: ${error.message}`;
-                        console.error("Camera access error:", error);
+                        errorMessage.textContent = `Error: ${error.message}`;
+                        console.error('Scanning error:', error);
+                        startScanBtn.style.display = 'block';
+                        qrReaderElement.style.display = 'none';
                     }
-                }
-
-                // Attach event listener
-                startScanBtn.addEventListener("click", startQRCodeScanner);
-            }
-
-            // Initialize scanner after a short delay to ensure library is loaded
-            setTimeout(initializeScanner, 100);
+                });
+            }, 200);
         });
     </script>
 </body>
