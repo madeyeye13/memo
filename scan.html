@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
 
     <style>
-        /* General Styling */
+        /* Previous CSS remains the same */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -37,7 +37,7 @@
         #rsvp-details {
             margin-top: 20px;
             text-align: left;
-            display: none; /* Hidden until scan success */
+            display: none;
         }
 
         p {
@@ -50,7 +50,7 @@
         }
 
         #qr-reader {
-            display: none; /* Scanner hidden initially */
+            display: none;
             margin: 20px auto;
             width: 100%;
             max-width: 300px;
@@ -66,10 +66,16 @@
             font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
+            margin: 10px 0;
         }
 
         .btn:hover {
             background-color: #0056b3;
+        }
+
+        #error-message {
+            color: red;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -79,6 +85,9 @@
 
         <!-- Scan Button -->
         <button class="btn" id="start-scan-btn">Scan QR Code</button>
+
+        <!-- Error Message -->
+        <div id="error-message"></div>
 
         <!-- QR Code Scanner (Initially Hidden) -->
         <div id="qr-reader"></div>
@@ -96,35 +105,63 @@
         const startScanBtn = document.getElementById("start-scan-btn");
         const qrReaderElement = document.getElementById("qr-reader");
         const rsvpDetailsElement = document.getElementById("rsvp-details");
+        const errorMessageElement = document.getElementById("error-message");
 
         let qrReader; // For storing Html5Qrcode instance
 
         // Initialize and start QR Code Scanner
-        function startQRCodeScanner() {
-            // Hide the scan button
-            startScanBtn.style.display = "none";
+        async function startQRCodeScanner() {
+            // Clear previous error messages
+            errorMessageElement.textContent = "";
 
-            // Show the scanner container
-            qrReaderElement.style.display = "block";
+            // Check if browser supports getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                errorMessageElement.textContent = "Your browser does not support camera access.";
+                return;
+            }
 
-            // Initialize Html5Qrcode instance
-            qrReader = new Html5Qrcode("qr-reader");
+            try {
+                // First, check camera permissions
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                
+                // Stop the stream immediately
+                stream.getTracks().forEach(track => track.stop());
 
-            qrReader.start(
-                { facingMode: "environment" }, // Rear camera
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => {
-                    // On successful scan
-                    displayRSVPDetails(decodedText);
+                // Hide the scan button
+                startScanBtn.style.display = "none";
 
-                    // Stop scanning
-                    qrReader.stop();
-                    qrReaderElement.style.display = "none";
-                },
-                (errorMessage) => {
-                    console.warn("QR Scan Error:", errorMessage);
-                }
-            );
+                // Show the scanner container
+                qrReaderElement.style.display = "block";
+
+                // Initialize Html5Qrcode instance
+                qrReader = new Html5Qrcode("qr-reader");
+
+                // List available cameras
+                const cameras = await Html5Qrcode.getCameras();
+                console.log("Available cameras:", cameras);
+
+                qrReader.start(
+                    cameras.length > 0 ? cameras[0].id : { facingMode: "environment" }, 
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (decodedText) => {
+                        // On successful scan
+                        displayRSVPDetails(decodedText);
+
+                        // Stop scanning
+                        qrReader.stop();
+                        qrReaderElement.style.display = "none";
+                    },
+                    (errorMessage) => {
+                        console.warn("QR Scan Error:", errorMessage);
+                        errorMessageElement.textContent = `Scanning error: ${errorMessage}`;
+                    }
+                );
+            } catch (error) {
+                console.error("Camera access error:", error);
+                errorMessageElement.textContent = `Camera access denied: ${error.message}. Please grant camera permissions.`;
+                startScanBtn.style.display = "block";
+                qrReaderElement.style.display = "none";
+            }
         }
 
         // Display RSVP Details
@@ -141,7 +178,7 @@
                 rsvpDetailsElement.style.display = "block";
             } catch (error) {
                 console.error("Invalid QR Data:", error);
-                alert("Invalid QR code format. Please try again.");
+                errorMessageElement.textContent = "Invalid QR code format. Please try again.";
             }
         }
 
