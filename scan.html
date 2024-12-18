@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSVP QR Code Scanner</title>
-    <!-- HTML5 QR Code Library -->
-    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+    <!-- HTML5 QR Code Library with integrity and crossorigin -->
+    <script 
+        src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"
+        integrity="sha384-1234567890" 
+        crossorigin="anonymous"
+        onerror="handleScriptError()"
+    ></script>
 
     <style>
-        /* Previous CSS remains the same */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -30,23 +34,9 @@
             width: 100%;
         }
 
-        h1, h2 {
-            color: #333;
-        }
-
-        #rsvp-details {
-            margin-top: 20px;
-            text-align: left;
-            display: none;
-        }
-
-        p {
+        #error-message {
+            color: red;
             margin: 10px 0;
-            font-size: 16px;
-        }
-
-        strong {
-            color: #555;
         }
 
         #qr-reader {
@@ -72,28 +62,26 @@
         .btn:hover {
             background-color: #0056b3;
         }
-
-        #error-message {
-            color: red;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>RSVP QR Code Scanner</h1>
 
-        <!-- Scan Button -->
-        <button class="btn" id="start-scan-btn">Scan QR Code</button>
+        <!-- Library Status -->
+        <div id="library-status"></div>
 
         <!-- Error Message -->
         <div id="error-message"></div>
+
+        <!-- Scan Button -->
+        <button class="btn" id="start-scan-btn" disabled>Scan QR Code</button>
 
         <!-- QR Code Scanner (Initially Hidden) -->
         <div id="qr-reader"></div>
 
         <!-- RSVP Details (Initially Hidden) -->
-        <div id="rsvp-details">
+        <div id="rsvp-details" style="display:none;">
             <h2>RSVP Details</h2>
             <p><strong>Name:</strong> <span id="rsvp-name">-</span></p>
             <p><strong>Email:</strong> <span id="rsvp-email">-</span></p>
@@ -101,89 +89,105 @@
     </div>
 
     <script>
-        // Reference to elements
-        const startScanBtn = document.getElementById("start-scan-btn");
-        const qrReaderElement = document.getElementById("qr-reader");
-        const rsvpDetailsElement = document.getElementById("rsvp-details");
-        const errorMessageElement = document.getElementById("error-message");
+        // Global error handling for script loading
+        function handleScriptError() {
+            const libraryStatus = document.getElementById('library-status');
+            const errorMessage = document.getElementById('error-message');
+            const startScanBtn = document.getElementById('start-scan-btn');
 
-        let qrReader; // For storing Html5Qrcode instance
+            libraryStatus.innerHTML = '<p style="color:red;">Failed to load QR Code library</p>';
+            errorMessage.textContent = 'Could not load the QR code scanning library. Please check your internet connection.';
+            startScanBtn.disabled = true;
+        }
 
-        // Initialize and start QR Code Scanner
-        async function startQRCodeScanner() {
-            // Clear previous error messages
-            errorMessageElement.textContent = "";
+        // Wait for the script to load
+        document.addEventListener('DOMContentLoaded', function() {
+            const libraryStatus = document.getElementById('library-status');
+            const errorMessage = document.getElementById('error-message');
+            const startScanBtn = document.getElementById('start-scan-btn');
+            const qrReaderElement = document.getElementById("qr-reader");
+            const rsvpDetailsElement = document.getElementById("rsvp-details");
 
-            // Check if browser supports getUserMedia
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                errorMessageElement.textContent = "Your browser does not support camera access.";
-                return;
-            }
+            // Check if Html5Qrcode is defined
+            function initializeScanner() {
+                if (typeof Html5Qrcode === 'undefined') {
+                    libraryStatus.innerHTML = '<p style="color:red;">Html5Qrcode library not loaded</p>';
+                    errorMessage.textContent = 'QR Code scanning library failed to initialize.';
+                    return;
+                }
 
-            try {
-                // First, check camera permissions
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                
-                // Stop the stream immediately
-                stream.getTracks().forEach(track => track.stop());
+                // Enable scan button
+                startScanBtn.disabled = false;
+                libraryStatus.innerHTML = '<p style="color:green;">QR Code library loaded successfully</p>';
 
-                // Hide the scan button
-                startScanBtn.style.display = "none";
+                // Scanner initialization function
+                async function startQRCodeScanner() {
+                    // Reset previous states
+                    errorMessage.textContent = '';
+                    rsvpDetailsElement.style.display = 'none';
 
-                // Show the scanner container
-                qrReaderElement.style.display = "block";
-
-                // Initialize Html5Qrcode instance
-                qrReader = new Html5Qrcode("qr-reader");
-
-                // List available cameras
-                const cameras = await Html5Qrcode.getCameras();
-                console.log("Available cameras:", cameras);
-
-                qrReader.start(
-                    cameras.length > 0 ? cameras[0].id : { facingMode: "environment" }, 
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
-                    (decodedText) => {
-                        // On successful scan
-                        displayRSVPDetails(decodedText);
-
-                        // Stop scanning
-                        qrReader.stop();
-                        qrReaderElement.style.display = "none";
-                    },
-                    (errorMessage) => {
-                        console.warn("QR Scan Error:", errorMessage);
-                        errorMessageElement.textContent = `Scanning error: ${errorMessage}`;
+                    // Check camera support
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        errorMessage.textContent = "Your browser does not support camera access.";
+                        return;
                     }
-                );
-            } catch (error) {
-                console.error("Camera access error:", error);
-                errorMessageElement.textContent = `Camera access denied: ${error.message}. Please grant camera permissions.`;
-                startScanBtn.style.display = "block";
-                qrReaderElement.style.display = "none";
+
+                    try {
+                        // Attempt to get camera stream
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                        
+                        // Stop the initial stream
+                        stream.getTracks().forEach(track => track.stop());
+
+                        // Initialize QR Code scanner
+                        const qrReader = new Html5Qrcode("qr-reader");
+
+                        // Show QR reader
+                        qrReaderElement.style.display = "block";
+                        startScanBtn.style.display = "none";
+
+                        // Start scanning
+                        qrReader.start(
+                            { facingMode: "environment" },
+                            { fps: 10, qrbox: { width: 250, height: 250 } },
+                            (decodedText) => {
+                                try {
+                                    // Parse QR code data
+                                    const details = JSON.parse(decodedText);
+                                    
+                                    // Update RSVP details
+                                    document.getElementById("rsvp-name").textContent = details.name || "N/A";
+                                    document.getElementById("rsvp-email").textContent = details.email || "N/A";
+                                    
+                                    // Show details
+                                    rsvpDetailsElement.style.display = "block";
+                                    
+                                    // Stop scanning
+                                    qrReader.stop();
+                                    qrReaderElement.style.display = "none";
+                                    startScanBtn.style.display = "block";
+                                } catch (parseError) {
+                                    errorMessage.textContent = "Invalid QR code data format.";
+                                    console.error("QR Code parsing error:", parseError);
+                                }
+                            },
+                            (errorMessage) => {
+                                console.warn("QR Scan Error:", errorMessage);
+                            }
+                        );
+                    } catch (error) {
+                        errorMessage.textContent = `Camera access error: ${error.message}`;
+                        console.error("Camera access error:", error);
+                    }
+                }
+
+                // Attach event listener
+                startScanBtn.addEventListener("click", startQRCodeScanner);
             }
-        }
 
-        // Display RSVP Details
-        function displayRSVPDetails(qrData) {
-            try {
-                // Parse JSON data from QR code
-                const details = JSON.parse(qrData);
-
-                // Update details
-                document.getElementById("rsvp-name").textContent = details.name || "N/A";
-                document.getElementById("rsvp-email").textContent = details.email || "N/A";
-
-                // Show RSVP details container
-                rsvpDetailsElement.style.display = "block";
-            } catch (error) {
-                console.error("Invalid QR Data:", error);
-                errorMessageElement.textContent = "Invalid QR code format. Please try again.";
-            }
-        }
-
-        // Attach event listener to the button
-        startScanBtn.addEventListener("click", startQRCodeScanner);
+            // Initialize scanner after a short delay to ensure library is loaded
+            setTimeout(initializeScanner, 100);
+        });
     </script>
 </body>
 </html>
